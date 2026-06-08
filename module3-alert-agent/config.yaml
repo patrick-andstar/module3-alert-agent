@@ -1,0 +1,37 @@
+server:
+  port: 9090
+
+security:
+  admin_token: ""
+
+mysql:
+  host: "127.0.0.1"
+  port: 3306
+  user: "root"
+  password: "123456"
+  database: "dlp_agent"
+
+ark:
+  chat_model_endpoint: "ep-20260602133449-kmp8g"
+  api_key: ""
+
+pipeline:
+  dedup_windows:
+    critical: 30
+    high: 60
+    medium: 180
+    low: 300
+    info: 600
+
+agent:
+  system_prompt_path: "prompt/system.md"
+  max_concurrency: 5
+  recall_strategy: "structured"
+  top_k_recall: 5
+  structured_recall_threshold: 0.60
+  strong_recall_threshold: 0.75
+  confidence_threshold: 0.8
+  false_positive_ttl_days: 30
+  analysis_timeout_sec: 30
+  max_recall_records: 500
+  llm_retry_count: 1
