@@ -2,6 +2,7 @@ package router
 
 import (
 	"context"
+	"strings"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/server"
@@ -52,9 +53,17 @@ func build(addr string, service Service, options Options) *server.Hertz {
 		h = server.Default(server.WithHostPorts(addr))
 	}
 
-	h.GET("/", frontendAsset("index.html", "text/html; charset=utf-8"))
-	h.GET("/styles.css", frontendAsset("styles.css", "text/css; charset=utf-8"))
-	h.GET("/app.js", frontendAsset("app.js", "application/javascript; charset=utf-8"))
+	// Frontend static files & SPA fallback
+	h.GET("/", serveFrontend)
+	h.GET("/*path", func(ctx context.Context, c *app.RequestContext) {
+		path := string(c.Path())
+		// Skip API routes
+		if strings.HasPrefix(path, "/api/") || path == "/healthz" {
+			c.Next(ctx)
+			return
+		}
+		serveFrontend(ctx, c)
+	})
 
 	h.GET("/healthz", healthz())
 	h.POST("/api/client/events", handleEvents(service))

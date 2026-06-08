@@ -1,0 +1,107 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 222 19% 7%;
+    --foreground: 210 20% 98%;
+    --card: 220 15% 12%;
+    --card-foreground: 210 20% 98%;
+    --popover: 220 15% 12%;
+    --popover-foreground: 210 20% 98%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 210 20% 98%;
+    --secondary: 220 17% 18%;
+    --secondary-foreground: 216 12% 84%;
+    --muted: 220 17% 18%;
+    --muted-foreground: 215 14% 66%;
+    --accent: 220 17% 18%;
+    --accent-foreground: 216 12% 84%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 20% 98%;
+    --border: 215 25% 23%;
+    --input: 220 17% 14%;
+    --ring: 217 91% 60%;
+    --radius: 0.5rem;
+    --sidebar: 222 19% 5%;
+    --sidebar-foreground: 215 14% 66%;
+    --sidebar-border: 215 25% 23%;
+    --sidebar-ring: 217 91% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: 'rlig' 1, 'calt' 1;
+    letter-spacing: -0.01em;
+    line-height: 1.5;
+  }
+}
+
+/* ---- Custom scrollbar ---- */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: #0F1116; }
+::-webkit-scrollbar-thumb { background: #2D3748; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #3B4A5E; }
+
+/* ---- Glass card utility ---- */
+.glass-card {
+  background: rgba(26, 29, 35, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid #2D3748;
+}
+
+.glass-card:hover {
+  border-color: #3B4A5E;
+}
+
+/* ---- Top glow for stat cards ---- */
+.stat-glow {
+  position: relative;
+  overflow: hidden;
+}
+.stat-glow::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.4), transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.stat-glow:hover::before {
+  opacity: 1;
+}
+
+/* ---- Code / JSON viewer ---- */
+.json-view {
+  @apply font-mono text-xs leading-relaxed;
+  tab-size: 2;
+  color: #9CA3AF;
+}
+
+/* ---- Skeleton pulse ---- */
+.skeleton-pulse {
+  animation: skeleton-pulse 1.8s ease-in-out infinite;
+}
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.7; }
+}
+
+/* ---- Fade in animation ---- */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up {
+  animation: fade-up 0.35s ease-out both;
+}
