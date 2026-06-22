@@ -34,6 +34,9 @@ export interface Scenario {
   id: string
   title: string
   summary: string
+  kind?: 'primary' | 'utility' | 'secondary'
+  stageFocus?: 'whitelist' | 'dedup' | 'recall_agent' | 'true_alert' | 'seed' | 'uncertain'
+  outcomeHint?: string
   steps: () => ScenarioStep[]
 }
 

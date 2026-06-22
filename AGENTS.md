@@ -13,6 +13,14 @@ go run ./cmd/server
 go test ./...
 ```
 
+前端源码在 `module3-alert-agent/frontend/`，演示页面构建到 `module3-alert-agent/internal/router/web/`，由 Go 服务通过 `GET /` 静态托管。修改前端展示层后优先运行：
+
+```powershell
+cd module3-alert-agent/frontend
+npm run typecheck
+npm run build
+```
+
 数据库初始化脚本应放在 `module3-alert-agent/sql/schema.sql`。需要连接 MySQL 时，先确认本机已有可用 MySQL 8.0+，再执行建表或测试。
 
 服务默认端口是 `9090`。如果端口被占用，先说明原因，再临时改配置或使用环境变量覆盖。
@@ -49,6 +57,7 @@ module3-alert-agent/
 ├── internal/model/
 ├── internal/store/
 ├── internal/router/
+├── frontend/
 ├── sql/schema.sql
 ├── config.yaml
 ├── go.mod
@@ -62,7 +71,7 @@ module3-alert-agent/
 
 1. 白名单过滤
 2. 去重合并
-3. 误报检索与 Agent 精判
+3. 结构化误报召回与 Agent 精判
 4. 写入最终告警
 
 白名单是确定性规则引擎，Agent 不参与白名单判断。白名单命中后直接丢弃日志，不写入 `alert_logs`。
@@ -95,6 +104,7 @@ POST   /api/whitelist
 PUT    /api/whitelist/:id
 DELETE /api/whitelist/:id
 GET    /api/false-positives
+POST   /api/false-positives
 DELETE /api/false-positives/:id
 ```
 
@@ -102,23 +112,20 @@ DELETE /api/false-positives/:id
 
 `POST /api/alerts/query` 面向模块四，必须支持条件过滤、分页、排序，并限制 `page_size` 上限。
 
-## Agent 与向量召回
+## Agent 与误报召回
 
-误报检测采用 B+C 两阶段：
+当前实现采用结构化召回 + ReAct Agent 两阶段：
 
-1. B 阶段：Embedding 向量召回 Top-5。
+1. 召回阶段：按 `sensitive_type`、`operation`、`process_name`、`target`、`user_id`、`process_path` 对 `false_positive_library` 做结构化打分，默认 Top-5。
 2. C 阶段：ReAct Agent 精判。
 
-Embedding 文本拼接格式：
-
-```text
-{user_id} {process_name} {operation} {target} {sensitive_type} reason: {false_positive_reason}
-```
+`false_positive_library.embedding_json` 是兼容字段，当前主流程不依赖 Embedding；不要为了演示前端重新引入向量数据库或强制外部 Embedding 服务。
 
 默认参数：
 
 - `top_k_recall`: 5
-- `similarity_threshold`: 0.75
+- `structured_recall_threshold`: 0.60
+- `strong_recall_threshold`: 0.75
 - `confidence_threshold`: 0.8
 - `false_positive_ttl_days`: 30
 - `max_concurrency`: 先设 5，压测后调整
@@ -156,7 +163,7 @@ $env:ARK_API_KEY="..."
 
 表结构变更前先说明影响。除非用户确认，不新增数据库迁移体系或更换数据库。
 
-向量存储使用 `false_positive_library.embedding_json`，应用层计算余弦相似度；不要引入向量数据库，除非用户重新决策。
+`false_positive_library.embedding_json` 保留为兼容字段；当前召回逻辑以结构化字段打分为准。不要引入向量数据库，除非用户重新决策。
 
 ## 编码约定
 
@@ -195,7 +202,7 @@ go test ./...
 2. Phase 2：白名单 CRUD、热缓存、过滤、去重合并、事件接收流水线。
 3. Phase 3：Eino ADK、方舟 ChatModel/Embedding、4 个 Tool、ReAct 精判、误报库 TTL。
 4. Phase 4：查询 API、端到端联调、并发压测、模块二/四接口对齐。
-5. Phase 5：单元测试、Agent 样例测试、README/API 文档、答辩材料。
+5. Phase 5：单元测试、Agent 样例测试、README/API 文档、答辩材料，以及内置 Demo Theater 前端演示页面。
 
 跨 Phase 做大改前先说明范围。新增计划外依赖、修改锁文件、接入外部服务或调整数据库结构前，先向用户确认。
 

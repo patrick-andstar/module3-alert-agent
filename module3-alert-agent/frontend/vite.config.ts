@@ -13,5 +13,17 @@ export default defineConfig({
     outDir: '../internal/router/web',
     assetsDir: 'assets',
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        entryFileNames: 'app.js',
+        chunkFileNames: 'assets/[name].js',
+        assetFileNames: (assetInfo) => {
+          if (assetInfo.name?.endsWith('.css')) {
+            return 'assets/app.css'
+          }
+          return 'assets/[name][extname]'
+        },
+      },
+    },
   },
 })

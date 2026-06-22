@@ -56,7 +56,7 @@ E2E smoke passed against http://127.0.0.1:9090
 - CloudWeGo Eino / ReAct Agent
 - 火山方舟 Ark ChatModel
 - MySQL 8.0+
-- 内置静态前端控制台：`GET /`
+- 内置 Demo Theater 前端：`GET /`
 
 ## 2. 目录结构
 
@@ -70,7 +70,8 @@ module3-alert-agent/
 │   ├── pipeline/   # 白名单过滤、去重合并
 │   ├── router/     # Hertz 路由、API handler、前端静态资源
 │   └── store/      # MySQL 访问、SQL 构造、扫描逻辑
-├── internal/router/web/ # 前端控制台
+├── internal/router/web/ # 构建后的 Demo Theater 静态资源
+├── frontend/            # React/Tailwind Demo Theater 源码
 ├── sql/schema.sql       # 新库建表
 ├── sql/upgrade.sql      # 旧库补字段/索引
 ├── tools/e2e-smoke.ps1  # 端到端验收脚本
@@ -188,7 +189,7 @@ powershell -ExecutionPolicy Bypass -File .\tools\e2e-smoke.ps1 -PreflightOnly
 - 应用 `sql/schema.sql` 和 `sql/upgrade.sql`。
 - 启动 `go run ./cmd/server`。
 - 等待 `/healthz` 可用。
-- 检查 `GET /` 和 `GET /app.js`，确认前端固定场景存在。
+- 检查 `GET /` 和 `GET /app.js`，确认 Demo Theater 前端资源存在。
 - 调用白名单 API，验证白名单命中会丢弃事件。
 - 写入误报库模式，验证 `scenario_key` upsert 和 `hit_count`。
 - 上报告警，调用 Ark ReAct Agent 精判。
@@ -254,6 +255,18 @@ Invoke-WebRequest http://localhost:9090/app.js -UseBasicParsing | Select-Object 
 
 两个命令都返回 `200`，说明浏览器页面所需资源已经就绪。
 
+### 6.1 重新构建前端
+
+如果修改了演示展示层，在 `frontend` 目录重新构建，产物会写入 `internal/router/web/`：
+
+```powershell
+Set-Location C:\Users\11832\Desktop\方案规划\module3-alert-agent\frontend
+npm run typecheck
+npm run build
+```
+
+当前构建固定输出 `app.js` 和 `assets/app.css`，Go 服务启动后通过 `GET /app.js` 和 `GET /assets/app.css` 访问。
+
 ## 7. 前端演示流程
 
 浏览器打开：
@@ -262,10 +275,10 @@ Invoke-WebRequest http://localhost:9090/app.js -UseBasicParsing | Select-Object 
 http://localhost:9090/
 ```
 
-前端是一个固定场景控制台，左侧按钮内置 JSON 输入，点击后会直接调用真实 API，并在右侧展示：
+前端是一个“战情指挥舱 / Demo Theater”：首屏展示治理流水线、主演示按钮、当前 Agent 结论和关键指标；下方证据区展示真实请求与数据表。按钮内置 JSON 输入，点击后会直接调用真实 API，并展示：
 
 - 场景输入 JSON
-- 每一步请求与响应
+- 每一步真实 HTTP 请求与响应
 - `alert_logs` 查询结果
 - `false_positive_library` 误报模式记录
 - `whitelist_rules` 白名单记录
@@ -305,7 +318,7 @@ http://localhost:9090/
 
 ### 7.1 展示时重点看哪里
 
-页面右侧有三块结果，建议边点按钮边解释：
+页面下方证据区有三张核心表，建议边点按钮边解释：
 
 - `alert_logs`：看最终入库告警，重点字段是 `event_id`、`risk_level`、`old_risk_level`、`is_merge_event`、`file_count`、`agent_verdict`、`agent_confidence`、`agent_explanation`、`recall_score`。
 - `false_positive_library`：看误报模式是否按 `scenario_key` 去重，重点字段是 `scenario_key`、`hit_count`、`last_seen_at`、`expired_at`。
@@ -599,7 +612,7 @@ netstat -ano | Select-String ':9090'
 
 ### 前端按钮点击后没有记录变化
 
-优先看右侧“执行输出”里的请求响应。常见原因：
+优先看证据区“执行输出”里的请求响应。常见原因：
 
 - Admin Token 未填写。
 - 事件被白名单命中丢弃。

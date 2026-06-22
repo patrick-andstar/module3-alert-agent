@@ -7,7 +7,7 @@
 - Phase 3: Ark ChatModel initialization, Eino ReAct runtime, four tools, structured false-positive recall, prompt loading, confidence threshold handling, false-positive TTL, `scenario_key` upsert, and bounded analyzer concurrency are implemented in `internal/agent` and `internal/store`.
 - Phase 4: `POST /api/alerts/query` supports filters, pagination, sorting, page-size cap, and returns Agent analysis fields.
 - Phase 5: Unit tests, API README, schema checks, and this acceptance note are included.
-- Frontend: `GET /` serves an embedded scenario console with fixed JSON test inputs for whitelist, dedup, true alert, suspected false positive, seeded false-positive pattern, and recall-hit Agent analysis scenarios.
+- Frontend: `GET /` serves the Demo Theater UI. The first screen is a live-demo command view with pipeline stages, primary scenario buttons, current Agent verdict metrics, and an evidence area that shows fixed JSON test inputs plus real HTTP responses for whitelist, dedup, true alert, suspected false positive, seeded false-positive pattern, and recall-hit Agent analysis scenarios.
 
 ## Verification Commands
 
@@ -26,6 +26,15 @@ Unit tests do not call live MySQL or Ark services. Before a live demo:
 3. Run `go run ./cmd/server` from `module3-alert-agent`.
 4. Open `http://localhost:9090/`.
 5. Click each scenario button and verify that alert query records, false-positive-library records, and whitelist records refresh in the UI.
+
+If the frontend source changes, rebuild it from `module3-alert-agent/frontend`:
+
+```powershell
+npm run typecheck
+npm run build
+```
+
+The build writes static assets to `internal/router/web/`; current entry assets are `app.js` and `assets/app.css`.
 
 `tools/e2e-smoke.ps1` automates the same live boundary once these environment variables are set:
 
