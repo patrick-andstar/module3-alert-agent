@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"fmt"
+	"regexp"
 	"sync"
 	"time"
 
@@ -38,7 +39,7 @@ func (d *Deduper) Add(event model.Event) model.Event {
 	}
 
 	group := d.groups[key]
-	if len(group) == 0 || event.Timestamp-group[0].Timestamp > window {
+	if len(group) == 0 || event.Timestamp-group[0].Timestamp > window || differentDemoRun(group[0], event) {
 		d.groups[key] = []model.Event{event}
 		return event
 	}
@@ -100,6 +101,9 @@ func dedupKey(event model.Event) string {
 
 func mergeGroup(group []model.Event) model.Event {
 	merged := group[0]
+	if eventID := mergedEventID(group); eventID != "" {
+		merged.EventID = eventID
+	}
 	merged.IsMergeEvent = len(group) > 1
 	merged.FileCount = len(group)
 	merged.Files = make([]model.FileInfo, 0, len(group))
@@ -115,4 +119,31 @@ func mergeGroup(group []model.Event) model.Event {
 	merged.TimeRange = fmt.Sprintf("%d-%d", start, end)
 	merged.Duration = (time.Duration(end-start) * time.Second).String()
 	return merged
+}
+
+var demoRunEventIDPattern = regexp.MustCompile(`^evt-(.+)-\d+$`)
+
+func mergedEventID(group []model.Event) string {
+	if len(group) <= 1 {
+		return ""
+	}
+	matches := demoRunEventIDPattern.FindStringSubmatch(group[0].EventID)
+	if len(matches) != 2 || matches[1] == "" {
+		return ""
+	}
+	return fmt.Sprintf("merge-%s-001", matches[1])
+}
+
+func differentDemoRun(left, right model.Event) bool {
+	leftRun := demoRunID(left.EventID)
+	rightRun := demoRunID(right.EventID)
+	return leftRun != "" && rightRun != "" && leftRun != rightRun
+}
+
+func demoRunID(eventID string) string {
+	matches := demoRunEventIDPattern.FindStringSubmatch(eventID)
+	if len(matches) != 2 {
+		return ""
+	}
+	return matches[1]
 }

@@ -7,9 +7,10 @@ import type { FalsePositiveRecord } from '@/types'
 interface FalsePositivesTableProps {
   data: FalsePositiveRecord[]
   loading: boolean
+  onSelect?: (row: FalsePositiveRecord) => void
 }
 
-export function FalsePositivesTable({ data, loading }: FalsePositivesTableProps) {
+export function FalsePositivesTable({ data, loading, onSelect }: FalsePositivesTableProps) {
   return (
     <div className="bg-[#1A1D23] border border-[#2D3748] rounded-lg overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 border-b border-[#2D3748]">
@@ -37,7 +38,11 @@ export function FalsePositivesTable({ data, loading }: FalsePositivesTableProps)
             </TableHeader>
             <TableBody>
               {data.map((row) => (
-                <TableRow key={row.id} className="border-[#252A34] hover:bg-[#252A34]/50 transition-colors">
+                <TableRow
+                  key={row.id}
+                  className="border-[#252A34] hover:bg-[#252A34]/50 transition-colors cursor-pointer"
+                  onClick={() => onSelect?.(row)}
+                >
                   <TableCell className="font-mono text-[11px] text-[#D1D5DB] py-2.5 max-w-[180px] truncate">
                     {row.scenario_key}
                   </TableCell>

@@ -51,6 +51,67 @@ func TestDeduperMergesEventsWithExactKeyInsideRiskWindow(t *testing.T) {
 	}
 }
 
+func TestDeduperCreatesMergedEventIDFromDemoRunID(t *testing.T) {
+	deduper := pipeline.NewDeduper(map[string]int{
+		"high": 60,
+	})
+
+	first := model.Event{
+		EventID:       "evt-demo-20260623-153012-a7f3-01",
+		HostID:        "host-1",
+		UserID:        "user-1",
+		ProcessName:   "chrome.exe",
+		SensitiveType: "customer",
+		Operation:     "upload",
+		RiskLevel:     "high",
+		FilePath:      "C:/a.xlsx",
+		FileHash:      "hash-a",
+		Timestamp:     1000,
+	}
+	second := first
+	second.EventID = "evt-demo-20260623-153012-a7f3-02"
+	second.FilePath = "C:/b.xlsx"
+	second.FileHash = "hash-b"
+	second.Timestamp = 1010
+
+	_ = deduper.Add(first)
+	merged := deduper.Add(second)
+
+	if merged.EventID != "merge-demo-20260623-153012-a7f3-001" {
+		t.Fatalf("EventID = %q, want merge-demo-20260623-153012-a7f3-001", merged.EventID)
+	}
+}
+
+func TestDeduperDoesNotMergeDifferentDemoRuns(t *testing.T) {
+	deduper := pipeline.NewDeduper(map[string]int{
+		"high": 60,
+	})
+
+	first := model.Event{
+		EventID:       "evt-demo-20260623-153012-a7f3-01",
+		HostID:        "host-1",
+		UserID:        "user-1",
+		ProcessName:   "chrome.exe",
+		SensitiveType: "customer",
+		Operation:     "upload",
+		RiskLevel:     "high",
+		Timestamp:     1000,
+	}
+	second := first
+	second.EventID = "evt-demo-20260623-153020-b8e4-01"
+	second.Timestamp = 1010
+
+	_ = deduper.Add(first)
+	nextRun := deduper.Add(second)
+
+	if nextRun.IsMergeEvent {
+		t.Fatal("events from different demo runs should not merge")
+	}
+	if nextRun.EventID != second.EventID {
+		t.Fatalf("EventID = %q, want %q", nextRun.EventID, second.EventID)
+	}
+}
+
 func TestDeduperDoesNotMergeDifferentKeyOrOutsideWindow(t *testing.T) {
 	deduper := pipeline.NewDeduper(map[string]int{
 		"high": 60,

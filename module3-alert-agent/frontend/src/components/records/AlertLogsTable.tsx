@@ -8,6 +8,7 @@ import type { AlertRecord } from '@/types'
 interface AlertLogsTableProps {
   data: AlertRecord[]
   loading: boolean
+  onSelect?: (row: AlertRecord) => void
 }
 
 const riskStyle: Record<string, string> = {
@@ -24,7 +25,7 @@ const verdictStyle: Record<string, string> = {
   uncertain:      'text-[#FBBF24] border-[#F59E0B]/30 bg-[#F59E0B]/8',
 }
 
-export function AlertLogsTable({ data, loading }: AlertLogsTableProps) {
+export function AlertLogsTable({ data, loading, onSelect }: AlertLogsTableProps) {
   return (
     <div className="bg-[#1A1D23] border border-[#2D3748] rounded-lg overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 border-b border-[#2D3748]">
@@ -52,7 +53,11 @@ export function AlertLogsTable({ data, loading }: AlertLogsTableProps) {
             </TableHeader>
             <TableBody>
               {data.map((row) => (
-                <TableRow key={row.event_id} className="border-[#252A34] hover:bg-[#252A34]/50 transition-colors">
+                <TableRow
+                  key={row.event_id}
+                  className="border-[#252A34] hover:bg-[#252A34]/50 transition-colors cursor-pointer"
+                  onClick={() => onSelect?.(row)}
+                >
                   <TableCell className="font-mono text-[11px] text-[#D1D5DB] py-2.5 max-w-[160px] truncate">
                     {row.event_id}
                   </TableCell>

@@ -22,9 +22,14 @@ func TestFrontendRoutesServeScenarioConsole(t *testing.T) {
 	if app.Code != 200 {
 		t.Fatalf("app.js status = %d, body = %s", app.Code, app.Body.String())
 	}
-	for _, scenario := range []string{"whitelist_drop", "dedup_merge", "seed_false_positive", "confirmed_false_positive", "empty_recall_agent_judgement", "uncertain_candidate", "true_alert"} {
+	for _, scenario := range []string{"whitelist_drop", "dedup_merge", "confirmed_false_positive", "empty_recall_agent_judgement", "uncertain_candidate", "true_alert"} {
 		if !strings.Contains(app.Body.String(), scenario) {
 			t.Fatalf("app.js missing scenario %q", scenario)
+		}
+	}
+	for _, marker := range []string{"run_id", "merge-", "业务化详情 + 原始 JSON"} {
+		if !strings.Contains(app.Body.String(), marker) {
+			t.Fatalf("app.js missing demo evidence marker %q", marker)
 		}
 	}
 }

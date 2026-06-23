@@ -39,7 +39,20 @@ func (p *Pipeline) Process(events []model.Event) Result {
 		if p.deduper != nil {
 			event = p.deduper.Add(event)
 		}
+		if event.IsMergeEvent {
+			result.Events = removeEventsWithDedupKey(result.Events, dedupKey(event))
+		}
 		result.Events = append(result.Events, event)
 	}
 	return result
+}
+
+func removeEventsWithDedupKey(events []model.Event, key string) []model.Event {
+	filtered := events[:0]
+	for _, event := range events {
+		if dedupKey(event) != key {
+			filtered = append(filtered, event)
+		}
+	}
+	return filtered
 }

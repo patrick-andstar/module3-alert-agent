@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import type { Scenario, StepResult, RunState, ScenarioStep } from '@/types'
+import type { AlertRecord, CurrentRun, Scenario, StepResult, RunState, ScenarioStep } from '@/types'
 
 const nowSeconds = () => Math.floor(Date.now() / 1000)
 
@@ -10,7 +10,7 @@ const eventBase = {
   file_hash: 'hash-demo-customer',
   sensitive: true,
   sensitive_type: 'customer',
-  risk_level: 'high',
+  risk_level: 'high' as const,
   process_name: 'dlp-demo-browser.exe',
   process_path: 'C:/DLPDemo/dlp-demo-browser.exe',
   target: 'internal-crm.company.com',
@@ -18,229 +18,171 @@ const eventBase = {
   sensitive_file_id: 'file-demo-001',
 }
 
+function makeRunID(): string {
+  const date = new Date()
+  const stamp = [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+    '-',
+    String(date.getHours()).padStart(2, '0'),
+    String(date.getMinutes()).padStart(2, '0'),
+    String(date.getSeconds()).padStart(2, '0'),
+  ].join('')
+  const suffix = Math.random().toString(16).slice(2, 6)
+  return `demo-${stamp}-${suffix}`
+}
+
+function eventID(runID: string, index: number): string {
+  return `evt-${runID}-${String(index).padStart(2, '0')}`
+}
+
+function queryStep(runID: string): ScenarioStep {
+  return {
+    label: '查询本次运行告警结果',
+    method: 'POST',
+    path: '/api/alerts/query',
+    kind: 'query',
+    body: {
+      page: 1,
+      page_size: 50,
+      order_by: 'timestamp',
+      order: 'desc',
+      event_id_prefix: runID,
+    },
+  }
+}
+
+function falsePositivePattern(runID: string): Record<string, unknown> {
+  return {
+    scenario_key: `customer|upload|dlp-demo-browser.exe|internal-crm.company.com|${runID}`,
+    user_id: 'alice',
+    sensitive_type: 'customer',
+    risk_level: 'low',
+    process_name: 'dlp-demo-browser.exe',
+    process_path: 'C:/DLPDemo/dlp-demo-browser.exe',
+    target: 'internal-crm.company.com',
+    operation: 'upload',
+    reason: `normal crm upload from trusted internal workflow (${runID})`,
+    hit_count: 1,
+  }
+}
+
 const scenarios: Scenario[] = [
-  {
-    id: 'prepare_demo_data',
-    title: '准备演示数据',
-    summary: '写入统一的 CRM 正常业务误报模式，后续场景仍走真实 API。',
-    kind: 'utility',
-    stageFocus: 'seed',
-    outcomeHint: '合成但真实入库的演示数据包',
-    steps: () => [
-      {
-        label: '写入 CRM 误报模式',
-        method: 'POST',
-        path: '/api/false-positives',
-        body: {
-          scenario_key: 'customer|upload|dlp-demo-browser.exe|internal-crm.company.com',
-          user_id: 'alice',
-          sensitive_type: 'customer',
-          risk_level: 'low',
-          process_name: 'dlp-demo-browser.exe',
-          process_path: 'C:/DLPDemo/dlp-demo-browser.exe',
-          target: 'internal-crm.company.com',
-          operation: 'upload',
-          reason: 'normal crm upload from trusted internal workflow',
-          hit_count: 1,
-        },
-      },
-    ],
-  },
   {
     id: 'whitelist_drop',
     title: '白名单命中丢弃',
-    summary: '先写入白名单规则，再上报 backup.exe 告警，验证不进入 alert_logs。',
+    summary: '先写入白名单规则，再上报 backup.exe 告警，验证命中后不进入 alert_logs。',
     kind: 'primary',
     stageFocus: 'whitelist',
     outcomeHint: '确定性规则优先，命中后 dropped > 0',
-    steps: () => [
-      {
-        label: '创建白名单',
-        method: 'POST',
-        path: '/api/whitelist',
-        body: {
-          rule_name: 'demo-backup-whitelist',
-          logic: 'OR',
-          process_name: 'backup.exe',
-          enabled: true,
+    steps: (runID?: string) => {
+      const id = runID || makeRunID()
+      return [
+        {
+          label: '创建白名单规则',
+          method: 'POST',
+          path: '/api/whitelist',
+          kind: 'setup',
+          body: {
+            rule_name: `demo-backup-whitelist-${id}`,
+            logic: 'OR',
+            process_name: 'backup.exe',
+            enabled: true,
+          },
         },
-      },
-      {
-        label: '上报告警',
-        method: 'POST',
-        path: '/api/client/events',
-        body: {
-          host_id: 'host-demo-01',
-          events: [
-            {
-              ...eventBase,
-              event_id: `evt-whitelist-${Date.now()}`,
-              process_name: 'backup.exe',
-              process_path: 'C:/Backup/backup.exe',
-              target: 'D:/Backup/customer.xlsx',
-              timestamp: nowSeconds(),
-            },
-          ],
+        {
+          label: '上报命中白名单的告警',
+          method: 'POST',
+          path: '/api/client/events',
+          kind: 'submit',
+          body: {
+            host_id: 'host-demo-01',
+            events: [
+              {
+                ...eventBase,
+                event_id: eventID(id, 1),
+                process_name: 'backup.exe',
+                process_path: 'C:/Backup/backup.exe',
+                target: 'D:/Backup/customer.xlsx',
+                timestamp: nowSeconds(),
+              },
+            ],
+          },
         },
-      },
-    ],
+      ]
+    },
   },
   {
     id: 'dedup_merge',
     title: '去重窗口合并',
-    summary: '同一 host/user/process/type/operation 在窗口内重复上报，验证聚合输出。',
-    kind: 'secondary',
+    summary: '同一 host/user/process/type/operation 在窗口内重复上报，验证聚合为一条 merge event。',
+    kind: 'primary',
     stageFocus: 'dedup',
-    outcomeHint: '重复告警被聚合为一个 merge event',
-    steps: () => {
+    outcomeHint: '10 条同类输入合并为 1 条聚合告警',
+    steps: (runID?: string) => {
+      const id = runID || makeRunID()
       const stamp = nowSeconds()
-      const group = `evt-dedup-${Date.now()}`
+      const events = Array.from({ length: 10 }, (_, index) => ({
+        ...eventBase,
+        event_id: eventID(id, index + 1),
+        process_name: 'dlp-demo-bulk-uploader.exe',
+        process_path: 'C:/DLPDemo/dlp-demo-bulk-uploader.exe',
+        file_path: `C:/Users/Alice/Desktop/customer-${String(index + 1).padStart(2, '0')}.xlsx`,
+        file_hash: `hash-customer-${String(index + 1).padStart(2, '0')}`,
+        timestamp: stamp + index * 3,
+      }))
       return [
         {
-          label: '批量上报重复告警',
+          label: '批量上报 10 条同类外发告警',
           method: 'POST',
           path: '/api/client/events',
+          kind: 'submit',
           body: {
             host_id: 'host-demo-01',
-            events: [
-              {
-                ...eventBase,
-                event_id: `${group}-a`,
-                file_path: 'C:/Users/Alice/Desktop/customer-a.xlsx',
-                file_hash: 'hash-a',
-                timestamp: stamp,
-              },
-              {
-                ...eventBase,
-                event_id: `${group}-b`,
-                file_path: 'C:/Users/Alice/Desktop/customer-b.xlsx',
-                file_hash: 'hash-b',
-                timestamp: stamp + 20,
-              },
-            ],
+            events,
           },
         },
+        queryStep(id),
       ]
     },
   },
   {
-    id: 'seed_false_positive',
-    title: '预置误报模式',
-    summary: '写入 false_positive_library，供后续结构化召回命中。',
-    kind: 'secondary',
-    stageFocus: 'seed',
-    outcomeHint: 'scenario_key upsert，重复点击累加 hit_count',
-    steps: () => [
-      {
-        label: '写入误报模式',
-        method: 'POST',
-        path: '/api/false-positives',
-        body: {
-          scenario_key: 'customer|upload|dlp-demo-browser.exe|internal-crm.company.com',
-          user_id: 'alice',
-          sensitive_type: 'customer',
-          risk_level: 'low',
-          process_name: 'dlp-demo-browser.exe',
-          process_path: 'C:/DLPDemo/dlp-demo-browser.exe',
-          target: 'internal-crm.company.com',
-          operation: 'upload',
-          reason: 'normal crm upload from trusted internal workflow',
-          hit_count: 1,
-        },
-      },
-    ],
-  },
-  {
     id: 'confirmed_false_positive',
-    title: '召回命中后 Agent 精判',
-    summary: '先预置误报模式，再上报完全匹配事件，验证 recall_score 与 Agent 输出。',
+    title: '误报命中 + Agent 精判',
+    summary: '先写入本次运行的历史误报模式，再上报匹配事件，验证 recall_score 与 Agent 输出。',
     kind: 'primary',
     stageFocus: 'recall_agent',
     outcomeHint: '结构化召回 + ReAct 精判输出可解释误报',
-    steps: () => {
-      const timestamp = nowSeconds()
-      const seedScenario = scenarios.find((s) => s.id === 'seed_false_positive')!
+    steps: (runID?: string) => {
+      const id = runID || makeRunID()
       return [
-        ...seedScenario.steps(),
+        {
+          label: '写入本次运行误报模式',
+          method: 'POST',
+          path: '/api/false-positives',
+          kind: 'setup',
+          body: falsePositivePattern(id),
+        },
         {
           label: '上报匹配误报模式的告警',
           method: 'POST',
           path: '/api/client/events',
+          kind: 'submit',
           body: {
             host_id: 'host-demo-01',
             events: [
               {
                 ...eventBase,
-                event_id: `evt-fp-${Date.now()}`,
-                timestamp,
+                event_id: eventID(id, 1),
+                timestamp: nowSeconds(),
               },
             ],
           },
         },
+        queryStep(id),
       ]
     },
-  },
-  {
-    id: 'uncertain_candidate',
-    title: '疑似误报',
-    summary: '字段部分相似但 target 不同，验证低/中证据场景的展示。',
-    kind: 'secondary',
-    stageFocus: 'uncertain',
-    outcomeHint: '证据不足时最多有限降级，不写误报库',
-    steps: () => [
-      {
-        label: '上报部分相似告警',
-        method: 'POST',
-        path: '/api/client/events',
-        body: {
-          host_id: 'host-demo-01',
-          events: [
-            {
-              ...eventBase,
-              event_id: `evt-uncertain-${Date.now()}`,
-              target: 'partner-crm.example.com',
-              timestamp: nowSeconds(),
-            },
-          ],
-        },
-      },
-    ],
-  },
-  {
-    id: 'empty_recall_agent_judgement',
-    title: '空召回 Agent 判断',
-    summary: '使用全新业务字段，不预置误报模式，验证空召回仍调用 Agent 且不写误报库。',
-    kind: 'secondary',
-    stageFocus: 'uncertain',
-    outcomeHint: '空召回仍调用 Agent，但不沉淀误报模式',
-    steps: () => [
-      {
-        label: '上报无历史模式告警',
-        method: 'POST',
-        path: '/api/client/events',
-        body: {
-          host_id: 'host-demo-02',
-          events: [
-            {
-              ...eventBase,
-              event_id: `evt-empty-recall-${Date.now()}`,
-              host_id: 'host-demo-02',
-              user_id: 'bob',
-              file_path: 'C:/Users/Bob/Desktop/legal-contract.pdf',
-              file_hash: 'hash-legal-contract',
-              sensitive_type: 'legal_contract',
-              process_name: 'edge.exe',
-              process_path: 'C:/Program Files/Microsoft/Edge/Application/msedge.exe',
-              target: 'legal-review.internal',
-              operation: 'upload',
-              risk_level: 'critical',
-              sensitive_file_id: 'file-demo-legal',
-              timestamp: nowSeconds(),
-            },
-          ],
-        },
-      },
-    ],
   },
   {
     id: 'true_alert',
@@ -249,26 +191,107 @@ const scenarios: Scenario[] = [
     kind: 'primary',
     stageFocus: 'true_alert',
     outcomeHint: '真实风险保留 critical，不自动误降级',
-    steps: () => [
-      {
-        label: '上报外发告警',
-        method: 'POST',
-        path: '/api/client/events',
-        body: {
-          host_id: 'host-demo-01',
-          events: [
-            {
-              ...eventBase,
-              event_id: `evt-true-${Date.now()}`,
-              target: 'mail.qq.com',
-              operation: 'upload',
-              risk_level: 'critical',
-              timestamp: nowSeconds(),
-            },
-          ],
+    steps: (runID?: string) => {
+      const id = runID || makeRunID()
+      return [
+        {
+          label: '上报外发告警',
+          method: 'POST',
+          path: '/api/client/events',
+          kind: 'submit',
+          body: {
+            host_id: 'host-demo-01',
+            events: [
+              {
+                ...eventBase,
+                event_id: eventID(id, 1),
+                process_name: 'dlp-demo-mail-client.exe',
+                process_path: 'C:/DLPDemo/dlp-demo-mail-client.exe',
+                target: 'mail.qq.com',
+                operation: 'upload',
+                risk_level: 'critical',
+                timestamp: nowSeconds(),
+              },
+            ],
+          },
         },
-      },
-    ],
+        queryStep(id),
+      ]
+    },
+  },
+  {
+    id: 'uncertain_candidate',
+    title: '疑似误报',
+    summary: '字段部分相似但 target 不同，验证低/中证据场景展示。',
+    kind: 'secondary',
+    stageFocus: 'uncertain',
+    outcomeHint: '证据不足时最多有限降级，不写误报库',
+    steps: (runID?: string) => {
+      const id = runID || makeRunID()
+      return [
+        {
+          label: '上报部分相似告警',
+          method: 'POST',
+          path: '/api/client/events',
+          kind: 'submit',
+          body: {
+            host_id: 'host-demo-01',
+            events: [
+              {
+                ...eventBase,
+                event_id: eventID(id, 1),
+                process_name: 'dlp-demo-partner-sync.exe',
+                process_path: 'C:/DLPDemo/dlp-demo-partner-sync.exe',
+                target: 'partner-crm.example.com',
+                timestamp: nowSeconds(),
+              },
+            ],
+          },
+        },
+        queryStep(id),
+      ]
+    },
+  },
+  {
+    id: 'empty_recall_agent_judgement',
+    title: '空召回 Agent 判断',
+    summary: '使用全新业务字段，不预置误报模式，验证空召回仍调用 Agent 且不写误报库。',
+    kind: 'secondary',
+    stageFocus: 'uncertain',
+    outcomeHint: '空召回仍调用 Agent，但不沉淀误报模式',
+    steps: (runID?: string) => {
+      const id = runID || makeRunID()
+      return [
+        {
+          label: '上报无历史模式告警',
+          method: 'POST',
+          path: '/api/client/events',
+          kind: 'submit',
+          body: {
+            host_id: 'host-demo-02',
+            events: [
+              {
+                ...eventBase,
+                event_id: eventID(id, 1),
+                host_id: 'host-demo-02',
+                user_id: 'bob',
+                file_path: 'C:/Users/Bob/Desktop/legal-contract.pdf',
+                file_hash: 'hash-legal-contract',
+                sensitive_type: 'legal_contract',
+                process_name: 'edge.exe',
+                process_path: 'C:/Program Files/Microsoft/Edge/Application/msedge.exe',
+                target: 'legal-review.internal',
+                operation: 'upload',
+                risk_level: 'critical',
+                sensitive_file_id: 'file-demo-legal',
+                timestamp: nowSeconds(),
+              },
+            ],
+          },
+        },
+        queryStep(id),
+      ]
+    },
   },
 ]
 
@@ -278,6 +301,17 @@ function headers(token: string): Record<string, string> {
     result['Authorization'] = `Bearer ${token}`
   }
   return result
+}
+
+function filterRunAlerts(response: unknown, runID: string): AlertRecord[] {
+  const data =
+    response &&
+    typeof response === 'object' &&
+    !Array.isArray(response) &&
+    Array.isArray((response as { data?: unknown }).data)
+      ? ((response as { data: AlertRecord[] }).data)
+      : []
+  return data.filter((alert) => alert.event_id.includes(runID))
 }
 
 async function request(step: ScenarioStep, token: string): Promise<StepResult> {
@@ -302,6 +336,7 @@ async function request(step: ScenarioStep, token: string): Promise<StepResult> {
     },
     status: response.status,
     response: parsed,
+    kind: step.kind,
   }
 }
 
@@ -315,23 +350,31 @@ export function useScenarios() {
   const [activeScenario, setActiveScenario] = useState<Scenario | null>(null)
   const [steps, setSteps] = useState<ScenarioStep[]>([])
   const [results, setResults] = useState<StepResult[]>([])
+  const [currentRun, setCurrentRun] = useState<CurrentRun | null>(null)
   const [runState, setRunState] = useState<RunState>('idle')
   const [error, setError] = useState<string | null>(null)
 
   const runScenario = useCallback(async (scenario: Scenario, token: string, onComplete?: () => void) => {
+    const runID = makeRunID()
     setActiveScenario(scenario)
+    setCurrentRun({ run_id: runID, scenario_id: scenario.id, alerts: [] })
     setRunState('running')
     setError(null)
-    const generatedSteps = scenario.steps()
+    const generatedSteps = scenario.steps(runID)
     setSteps(generatedSteps)
     setResults([])
 
     try {
       const stepResults: StepResult[] = []
+      let runAlerts: AlertRecord[] = []
       for (const step of generatedSteps) {
         const result = await request(step, token)
         stepResults.push(result)
         setResults([...stepResults])
+        if (result.kind === 'query') {
+          runAlerts = filterRunAlerts(result.response, runID)
+          setCurrentRun({ run_id: runID, scenario_id: scenario.id, alerts: runAlerts })
+        }
         if (result.status >= 400) {
           throw new Error(formatRequestError(result))
         }
@@ -349,6 +392,7 @@ export function useScenarios() {
     activeScenario,
     steps,
     results,
+    currentRun,
     runState,
     error,
     runScenario,

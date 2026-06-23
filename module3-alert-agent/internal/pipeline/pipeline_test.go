@@ -47,10 +47,10 @@ func TestPipelineDropsWhitelistedEventsAndProcessesRemainingEvents(t *testing.T)
 	if result.Dropped != 1 {
 		t.Fatalf("Dropped = %d, want 1", result.Dropped)
 	}
-	if len(result.Events) != 2 {
-		t.Fatalf("len(Events) = %d, want 2", len(result.Events))
+	if len(result.Events) != 1 {
+		t.Fatalf("len(Events) = %d, want 1 merged alert", len(result.Events))
 	}
-	if !result.Events[1].IsMergeEvent {
-		t.Fatal("second kept event should be merged")
+	if !result.Events[0].IsMergeEvent {
+		t.Fatal("kept events should collapse into one merged alert")
 	}
 }

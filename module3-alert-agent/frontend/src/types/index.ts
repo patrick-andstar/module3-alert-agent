@@ -28,6 +28,7 @@ export interface ScenarioStep {
   method: 'GET' | 'POST' | 'PUT' | 'DELETE'
   path: string
   body?: Record<string, unknown>
+  kind?: 'setup' | 'submit' | 'query'
 }
 
 export interface Scenario {
@@ -37,7 +38,7 @@ export interface Scenario {
   kind?: 'primary' | 'utility' | 'secondary'
   stageFocus?: 'whitelist' | 'dedup' | 'recall_agent' | 'true_alert' | 'seed' | 'uncertain'
   outcomeHint?: string
-  steps: () => ScenarioStep[]
+  steps: (runID?: string) => ScenarioStep[]
 }
 
 export interface StepResult {
@@ -49,6 +50,13 @@ export interface StepResult {
   }
   status: number
   response: unknown
+  kind?: 'setup' | 'submit' | 'query'
+}
+
+export interface CurrentRun {
+  run_id: string
+  scenario_id: string
+  alerts: AlertRecord[]
 }
 
 export interface AlertRecord {

@@ -87,8 +87,8 @@ func TestEventEndpointRunsWhitelistAndDedupPipeline(t *testing.T) {
 	if payload.Accepted != 2 || payload.Dropped != 1 {
 		t.Fatalf("result = %+v, want accepted=2 dropped=1", payload)
 	}
-	if len(payload.Events) != 2 || !payload.Events[1].IsMergeEvent {
-		t.Fatalf("events = %+v, want second event merged", payload.Events)
+	if len(payload.Events) != 1 || !payload.Events[0].IsMergeEvent {
+		t.Fatalf("events = %+v, want one merged alert", payload.Events)
 	}
 }
 

@@ -715,6 +715,146 @@
   color: #9CA3AF;
 }
 
+.json-wrap {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.scenario-step-card {
+  border: 1px solid #252A34;
+  background: #11151B;
+}
+
+.scenario-step-summary {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #16181D;
+  text-align: left;
+}
+
+.scenario-step-title {
+  min-width: 0;
+  flex: 1;
+  color: #D1D5DB;
+  font-size: 12px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.scenario-step-pill,
+.scenario-step-pending {
+  border: 1px solid #2D3748;
+  color: #9CA3AF;
+  background: #0F1116;
+  padding: 1px 6px;
+  font: 700 10px Consolas, "Courier New", monospace;
+}
+
+.scenario-step-detail {
+  border-top: 1px solid #252A34;
+  padding: 12px;
+}
+
+.scenario-step-path {
+  margin-bottom: 8px;
+  color: #6B7280;
+  font: 11px Consolas, "Courier New", monospace;
+  overflow-wrap: anywhere;
+}
+
+.scenario-json-block {
+  max-height: 260px;
+  overflow: auto;
+  border: 1px solid #252A34;
+  background: #0F1116;
+  padding: 12px;
+}
+
+.scenario-merge-highlight {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  border: 1px solid rgba(93, 240, 189, 0.32);
+  background: rgba(93, 240, 189, 0.06);
+  padding: 12px;
+}
+
+.scenario-merge-highlight div {
+  min-width: 0;
+}
+
+.scenario-merge-highlight span,
+.record-detail-field span,
+.record-detail-wide span {
+  display: block;
+  color: #9AA8B5;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.scenario-merge-highlight strong,
+.record-detail-field strong {
+  display: block;
+  margin-top: 5px;
+  color: #F5F1E7;
+  font: 700 12px Consolas, "Courier New", monospace;
+  overflow-wrap: anywhere;
+}
+
+.scenario-merge-files {
+  grid-column: 1 / -1;
+  max-height: 180px;
+  overflow: auto;
+  border-top: 1px solid rgba(93, 240, 189, 0.18);
+  padding-top: 10px;
+}
+
+.record-detail-sheet {
+  width: min(760px, calc(100vw - 28px)) !important;
+}
+
+.record-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.record-detail-field,
+.record-detail-wide {
+  min-width: 0;
+  border: 1px solid #252A34;
+  background: #0F1116;
+  padding: 10px;
+}
+
+.record-detail-wide {
+  grid-column: 1 / -1;
+}
+
+.record-detail-wide p {
+  margin-top: 7px;
+  color: #D7E1EA;
+  font-size: 13px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.record-detail-json {
+  max-height: calc(100vh - 180px);
+  overflow: auto;
+  border: 1px solid #252A34;
+  background: #0F1116;
+  padding: 12px;
+}
+
 /* ---- Skeleton pulse ---- */
 .skeleton-pulse {
   animation: skeleton-pulse 1.8s ease-in-out infinite;

@@ -3,7 +3,6 @@ import {
   Activity,
   AlertTriangle,
   CheckCircle2,
-  Database,
   FileWarning,
   Loader2,
   Play,
@@ -22,6 +21,7 @@ import { ScenarioRunner } from '@/components/scenarios/ScenarioRunner'
 import { AlertLogsTable } from '@/components/records/AlertLogsTable'
 import { FalsePositivesTable } from '@/components/records/FalsePositivesTable'
 import { WhitelistTable } from '@/components/records/WhitelistTable'
+import { RecordDetail, type DetailRecord } from '@/components/records/RecordDetail'
 import { useScenarios } from '@/hooks/useScenarios'
 import { useRecords } from '@/hooks/useRecords'
 import { cn } from '@/lib/utils'
@@ -89,24 +89,19 @@ const runStateLabel: Record<RunState, string> = {
   error: '执行异常',
 }
 
-const mainScenarioIds = new Set(['whitelist_drop', 'confirmed_false_positive', 'true_alert'])
+const mainScenarioIds = new Set(['whitelist_drop', 'dedup_merge', 'confirmed_false_positive', 'true_alert'])
 
-function getLastResponse(results: StepResult[]): Record<string, unknown> | null {
-  const last = results[results.length - 1]?.response
+function getLastResponse(results: StepResult[], kind?: StepResult['kind']): Record<string, unknown> | null {
+  const candidates = kind ? results.filter((result) => result.kind === kind) : results
+  const last = candidates[candidates.length - 1]?.response
   return last && typeof last === 'object' && !Array.isArray(last) ? (last as Record<string, unknown>) : null
 }
 
 function getLatestRelevantAlert(activeScenario: Scenario | null, alerts: AlertRecord[]): AlertRecord | undefined {
-  if (!activeScenario) return alerts[0]
-
-  if (activeScenario.id === 'whitelist_drop' || activeScenario.id === 'prepare_demo_data') {
-    return undefined
-  }
-  if (activeScenario.id === 'confirmed_false_positive') {
-    return alerts.find((alert) => alert.target === 'internal-crm.company.com') || alerts[0]
-  }
-  if (activeScenario.id === 'true_alert') {
-    return alerts.find((alert) => alert.target === 'mail.qq.com') || alerts[0]
+  if (!activeScenario) return undefined
+  if (activeScenario.id === 'whitelist_drop') return undefined
+  if (activeScenario.id === 'dedup_merge') {
+    return alerts.find((alert) => alert.is_merge_event) || alerts[0]
   }
   return alerts[0]
 }
@@ -189,7 +184,8 @@ function ScenarioButton({
 
 export default function App() {
   const [token, setToken] = useState('')
-  const { scenarios, activeScenario, steps, results, runState, error, runScenario } = useScenarios()
+  const [selectedRecord, setSelectedRecord] = useState<DetailRecord | null>(null)
+  const { scenarios, activeScenario, steps, results, currentRun, runState, error, runScenario } = useScenarios()
   const { alerts, falsePositives, whitelist, stats, loading, refreshRecords } = useRecords()
 
   const handleRefresh = useCallback(() => {
@@ -211,12 +207,8 @@ export default function App() {
     () => scenarios.filter((scenario) => mainScenarioIds.has(scenario.id)),
     [scenarios]
   )
-  const prepareScenario = useMemo(
-    () => scenarios.find((scenario) => scenario.id === 'prepare_demo_data'),
-    [scenarios]
-  )
   const secondaryScenarios = useMemo(
-    () => scenarios.filter((scenario) => !mainScenarioIds.has(scenario.id) && scenario.id !== 'prepare_demo_data'),
+    () => scenarios.filter((scenario) => !mainScenarioIds.has(scenario.id)),
     [scenarios]
   )
 
@@ -226,8 +218,9 @@ export default function App() {
     return stageByFocus[activeScenario.stageFocus] || []
   }, [activeScenario?.stageFocus, runState])
 
-  const latestAlert = getLatestRelevantAlert(activeScenario, alerts)
-  const lastResponse = getLastResponse(results)
+  const runAlerts = currentRun?.alerts || []
+  const latestAlert = getLatestRelevantAlert(activeScenario, runAlerts)
+  const lastResponse = getLastResponse(results, 'submit') || getLastResponse(results)
   const accepted = lastResponse?.accepted
   const dropped = lastResponse?.dropped
   const statusText = error
@@ -235,12 +228,14 @@ export default function App() {
     : runState === 'running'
       ? '正在调用真实 API'
       : runState === 'ok'
-        ? '真实接口已返回'
+        ? currentRun?.run_id
+          ? `本次运行 ${currentRun.run_id}`
+          : '真实接口已返回'
         : '等待选择演示场景'
 
   const verdict = latestAlert?.agent_verdict
-  const oldRisk = displayValue(latestAlert?.old_risk_level || latestAlert?.risk_level, 'HIGH')
-  const newRisk = displayValue(latestAlert?.risk_level, activeScenario?.id === 'true_alert' ? 'CRITICAL' : 'LOW')
+  const oldRisk = displayValue(latestAlert?.old_risk_level || latestAlert?.risk_level)
+  const newRisk = displayValue(latestAlert?.risk_level)
 
   return (
     <TooltipProvider>
@@ -265,7 +260,7 @@ export default function App() {
               <div className="theater-report-stats" aria-label="demo stats">
                 <div>
                   <span>主演示场景</span>
-                  <strong>3</strong>
+                  <strong>4</strong>
                 </div>
                 <div>
                   <span>治理链路</span>
@@ -299,17 +294,6 @@ export default function App() {
                   <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
                   刷新证据
                 </Button>
-                {prepareScenario && (
-                  <Button
-                    type="button"
-                    onClick={() => handleScenarioClick(prepareScenario)}
-                    disabled={runState === 'running'}
-                    className="theater-dark-button"
-                  >
-                    <Database className="h-4 w-4" />
-                    准备演示数据
-                  </Button>
-                )}
               </div>
             </aside>
 
@@ -391,7 +375,7 @@ export default function App() {
                       {error ||
                         latestAlert?.agent_explanation ||
                         activeScenario?.outcomeHint ||
-                        '这里会展示真实接口返回后的 Agent 解释、风险变化和查询证据。'}
+                        '点击主演示按钮后，这里只展示本次运行的风险变化、Agent 解释和查询证据。'}
                     </p>
                   </div>
                 </div>
@@ -412,7 +396,13 @@ export default function App() {
               </div>
             </div>
 
-            <ScenarioRunner steps={steps} results={results} runState={runState} error={error} />
+            <ScenarioRunner
+              steps={steps}
+              results={results}
+              currentAlerts={runAlerts}
+              runState={runState}
+              error={error}
+            />
 
             {secondaryScenarios.length > 0 && (
               <div className="theater-secondary">
@@ -438,9 +428,21 @@ export default function App() {
             )}
 
             <div className="theater-tables">
-              <AlertLogsTable data={alerts} loading={loading} />
-              <FalsePositivesTable data={falsePositives} loading={loading} />
-              <WhitelistTable data={whitelist} loading={loading} />
+              <AlertLogsTable
+                data={alerts}
+                loading={loading}
+                onSelect={(row) => setSelectedRecord({ kind: 'alert', row })}
+              />
+              <FalsePositivesTable
+                data={falsePositives}
+                loading={loading}
+                onSelect={(row) => setSelectedRecord({ kind: 'false_positive', row })}
+              />
+              <WhitelistTable
+                data={whitelist}
+                loading={loading}
+                onSelect={(row) => setSelectedRecord({ kind: 'whitelist', row })}
+              />
             </div>
           </section>
 
@@ -459,6 +461,7 @@ export default function App() {
           )}
         </main>
       </div>
+      <RecordDetail record={selectedRecord} onClose={() => setSelectedRecord(null)} />
       <Toaster />
     </TooltipProvider>
   )
