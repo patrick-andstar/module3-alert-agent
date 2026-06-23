@@ -56,7 +56,7 @@ func TestBuildDecisionPromptIncludesEventAndRecallContext(t *testing.T) {
 func TestBuildDecisionPromptDoesNotAskAgentToWriteFalsePositiveLibrary(t *testing.T) {
 	prompt := agent.BuildDecisionPrompt(model.Event{EventID: "evt-1"}, nil)
 
-	for _, needle := range []string{"recommendation only", "server decides"} {
+	for _, needle := range []string{"只表示推荐", "服务端决定"} {
 		if !strings.Contains(prompt, needle) {
 			t.Fatalf("prompt %q missing %q", prompt, needle)
 		}
@@ -80,7 +80,22 @@ func TestDecisionPromptsAllowDirectJSONWhenContextIsEnough(t *testing.T) {
 	}
 
 	prompt := agent.BuildDecisionPrompt(model.Event{EventID: "evt-1"}, nil)
-	for _, needle := range []string{"Current event", "False-positive recall history", "If the provided context is sufficient"} {
+	for _, needle := range []string{"当前事件", "误报召回历史", "上下文足够"} {
+		if !strings.Contains(prompt, needle) {
+			t.Fatalf("decision prompt %q missing %q", prompt, needle)
+		}
+	}
+}
+
+func TestBuildDecisionPromptRequiresChineseNaturalLanguageOutput(t *testing.T) {
+	prompt := agent.BuildDecisionPrompt(model.Event{EventID: "evt-1"}, nil)
+
+	for _, needle := range []string{
+		"自然语言字段必须使用中文",
+		"false_positive_reason",
+		"explanation",
+		"不要翻译文件名、进程名、域名、URL、路径、event_id",
+	} {
 		if !strings.Contains(prompt, needle) {
 			t.Fatalf("decision prompt %q missing %q", prompt, needle)
 		}

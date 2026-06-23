@@ -73,6 +73,50 @@ func TestApplyDecisionWritesFalsePositiveOnlyWithStrongRecallAndConfidence(t *te
 	}
 }
 
+func TestApplyDecisionStrongFalsePositiveDefaultsMissingRiskLevelToInfo(t *testing.T) {
+	store := &recordingFalsePositiveStore{}
+	event := model.Event{
+		HostID:        "host-1",
+		UserID:        "user-1",
+		ProcessName:   "chrome.exe",
+		SensitiveType: "customer",
+		Operation:     "upload",
+		RiskLevel:     "high",
+		Target:        "crm.internal",
+	}
+	decision := agent.Decision{
+		AgentVerdict:        "false_positive",
+		Confidence:          0.98,
+		FalsePositiveReason: "clear false positive",
+		NewRiskLevel:        "",
+		Explanation:         "matched strong false-positive pattern",
+	}
+
+	output, err := agent.ApplyDecision(event, decision, store, agent.DecisionConfig{
+		ConfidenceThreshold:   0.8,
+		StrongRecallThreshold: 0.75,
+		FalsePositiveTTLDays:  30,
+		HasRecall:             true,
+		RecallScore:           1.0,
+	})
+	if err != nil {
+		t.Fatalf("ApplyDecision returned error: %v", err)
+	}
+
+	if output.AgentVerdict != "false_positive" {
+		t.Fatalf("AgentVerdict = %q, want false_positive", output.AgentVerdict)
+	}
+	if output.OldRiskLevel != "high" {
+		t.Fatalf("OldRiskLevel = %q, want high", output.OldRiskLevel)
+	}
+	if output.RiskLevel != "info" {
+		t.Fatalf("RiskLevel = %q, want info", output.RiskLevel)
+	}
+	if len(store.writes) != 1 {
+		t.Fatalf("writes = %d, want 1", len(store.writes))
+	}
+}
+
 func TestApplyDecisionBelowConfidenceBecomesUncertainAndDowngradesAtMostOneLevel(t *testing.T) {
 	store := &recordingFalsePositiveStore{}
 	event := model.Event{RiskLevel: "high"}

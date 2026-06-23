@@ -68,7 +68,11 @@ func ApplyDecision(event model.Event, decision Decision, store FalsePositiveStor
 
 	if canWritePattern {
 		output.AgentVerdict = "false_positive"
-		applyRiskLevel(&output, decision.NewRiskLevel, 4, true)
+		targetRisk := decision.NewRiskLevel
+		if !model.ValidRiskLevel(targetRisk) {
+			targetRisk = string(model.RiskInfo)
+		}
+		applyRiskLevel(&output, targetRisk, 4, true)
 	} else {
 		output.AgentVerdict = "uncertain"
 		maxDowngrade := 1

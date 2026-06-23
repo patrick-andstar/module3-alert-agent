@@ -29,6 +29,8 @@ func TestDefaultSystemPromptDocumentsStructuredVerdictRules(t *testing.T) {
 		"recall_score",
 		"不要直接写入误报库",
 		"真实告警保持原风险等级",
+		"自然语言字段必须使用中文",
+		"不要翻译文件名",
 	} {
 		if !strings.Contains(prompt, needle) {
 			t.Fatalf("default prompt missing %q: %s", needle, prompt)

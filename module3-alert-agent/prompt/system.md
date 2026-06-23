@@ -17,6 +17,7 @@
 
 agent_verdict 只能是 false_positive、true_alert、uncertain。
 confidence 是你对本次误报判断的置信度，recall_score 是结构化召回候选的最高分；没有召回时填 0。
+自然语言字段必须使用中文，尤其是 false_positive_reason 和 explanation。不要翻译文件名、进程名、域名、URL、路径、event_id、host_id、user_id、哈希值、规则 ID、API 名称和 JSON 字段名。
 不要直接写入误报库，MarkAsFalsePositive 只表示推荐，最终是否入库由服务端根据召回强度和 confidence 决定。
 如果不是误报，agent_verdict 必须为 true_alert，真实告警保持原风险等级，不自动升级风险。
 如果召回为空但你认为疑似误报，agent_verdict 用 uncertain，可建议降低风险但必须说明证据不足。

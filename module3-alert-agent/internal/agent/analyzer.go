@@ -184,13 +184,14 @@ func (a *RuntimeAnalyzer) generateDecision(ctx context.Context, generator decisi
 
 func BuildDecisionPrompt(event model.Event, recalls []RecallResult) string {
 	var b strings.Builder
-	b.WriteString("Decide whether the following alert is a false positive. Output JSON only.\n")
-	b.WriteString("Current event:\n")
+	b.WriteString("判断以下告警是否为误报。只能输出 JSON。\n")
+	b.WriteString("自然语言字段必须使用中文，尤其是 false_positive_reason 和 explanation；不要翻译文件名、进程名、域名、URL、路径、event_id、host_id、user_id、哈希值、规则 ID、API 名称和 JSON 字段名。\n")
+	b.WriteString("当前事件:\n")
 	writeJSON(&b, event)
-	b.WriteString("\nFalse-positive recall history:\n")
+	b.WriteString("\n误报召回历史:\n")
 	writeJSON(&b, summarizeRecalls(recalls))
-	b.WriteString("\nIf the provided context is sufficient, return the JSON decision directly without calling tools. Call tools only when event or recall context is missing or inconsistent.")
-	b.WriteString("\nMarkAsFalsePositive is recommendation only; server decides whether the false-positive library is updated based on recall evidence and confidence. Return JSON that preserves true-alert risk, or recommends a bounded downgrade for suspected false positives.")
+	b.WriteString("\n如果上下文足够，直接返回 JSON 决策，不要调用工具。只有事件或召回上下文缺失、冲突时才调用工具。")
+	b.WriteString("\nMarkAsFalsePositive 只表示推荐；服务端决定是否根据召回证据和 confidence 更新误报库。返回 JSON 时，真实告警保持原风险，疑似误报只能建议有边界的降级。")
 	return b.String()
 }
 
